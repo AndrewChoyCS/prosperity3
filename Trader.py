@@ -192,94 +192,37 @@ class Trader:
             if (badAlgo):
               success, market_price, vwap, buy_amt, sell_amt = self.VWAP(order_depth)
               logger.print(f"{product} Market Price: " + str(market_price) + " VWAP: " + str(vwap) + " BUY: " + str(buy_amt) + " SELL: " + str(sell_amt))
+              sell_lowest = list(order_depth.sell_orders.items())[0]
+              sell_price, sell_amount = sell_lowest
+              buy_highest = list(order_depth.buy_orders.items())[0]
+              buy_price, buy_amount = buy_highest
+              mkt_width = sell_price - buy_price
               if success:
-                orders.append(Order(product, int(vwap + 1), -int(sell_amt)))
-                orders.append(Order(product, int(vwap - 1),  int(buy_amt)))
+                orders.append(Order(product, max(buy_price, int(vwap + mkt_width/3)), -int(sell_amt)))
+                orders.append(Order(product, min(sell_price, int(vwap - mkt_width/3)),  int(buy_amt)))
 
             else:
-              position = state.position[product] if product in state.position else 0
-              max_sell_size = -20 - position
-              max_buy_size = 20 - position
-              if product == "RAINFOREST_RESIN":
-                acceptable_price = 10000 # Participant should calculate this value
-
-                if sell_order_length != 0 and buy_order_length != 0:
-                   best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
-                   best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
-                   market_price = (best_ask + best_bid)/2
-                   market_spread = int(best_ask - best_bid)
-                   if market_spread == 1:
-                      best_ask = math.ceil(market_spread)
-                      best_bid = math.floor(market_spread)
-                      sell_size = min(abs(max_sell_size), max(1, 20 - 5*abs(best_ask - acceptable_price)))
-                      buy_size = min(max_buy_size, max(1, 20 - 5*abs(best_bid - acceptable_price)))
-                      orders.append(Order(product, best_ask, -1*sell_size))
-                      orders.append(Order(product, best_bid, buy_size))
-                   elif market_spread == 2:
-                      if market_price > acceptable_price:
-                         sell_size = min(abs(max_sell_size), max(1, 20 - 5*abs(best_ask - 1 - acceptable_price)))
-                         buy_size = min(max_buy_size, max(1, 20 - 5*abs(best_bid - acceptable_price)))
-                         orders.append(Order(product, best_ask-1, -1*sell_size))
-                         orders.append(Order(product, best_bid, buy_size))
-                      elif market_price < acceptable_price:
-                         sell_size = min(abs(max_sell_size), max(1, 20 - 5*abs(best_ask - acceptable_price)))
-                         buy_size = min(max_buy_size, max(1, 20 - 5*abs(best_bid + 1 - acceptable_price)))
-                         orders.append(Order(product, best_ask, -1*sell_size))
-                         orders.append(Order(product, best_bid+1, buy_size))
-                   else:
-                      sell_size = min(abs(max_sell_size), max(1, 20 - 5*abs(best_ask - 1 - acceptable_price)))
-                      buy_size = min(max_buy_size, max(1, 20 - 5*abs(best_bid + 1 - acceptable_price)))
-                      orders.append(Order(product, best_ask-1, -1*sell_size))
-                      orders.append(Order(product, best_bid+1, buy_size))
-
-                # if sell_order_length != 0:
-                #     best_ask, best_ask_amount = list(order_depth.sell_orders.items())[0]
-                #     if best_ask < acceptable_price:
-                #        print("BUY", str(best_ask_amount) + "x", best_ask)
-                #        orders.append(Order(product, best_ask, min(max_buy_size, -best_ask_amount)))
-                #     else:
-                #        orders.append(Order(product, min(acceptable_price+1, best_ask), max_sell_size))
-                # else:
-                #    orders.append(Order(product, acceptable_price+1, max_sell_size))
-        
-                # if buy_order_length != 0:
-                #     best_bid, best_bid_amount = list(order_depth.buy_orders.items())[0]
-                #     if best_bid > acceptable_price:
-                #        print("SELL", str(best_bid_amount) + "x", best_bid)
-                #        orders.append(Order(product, best_bid, max(-best_bid_amount, max_sell_size)))
-                #     else:
-                #        orders.append(Order(product, max(acceptable_price-1, best_bid), max_buy_size))
-                # else:
-                #    orders.append(Order(product, acceptable_price-1, max_buy_size))
-
-              if product == "KELP": 
-                if buy_order_length != 0 and sell_order_length != 0:
-                  best_bid = list(order_depth.buy_orders.items())[0][0]
-                  best_ask = list(order_depth.sell_orders.items())[0][0]
-                  market_price = (best_bid + best_ask) / 2
-                elif buy_order_length != 0:
-                   market_price = list(order_depth.buy_orders.items())[0][0]
-                elif sell_order_length != 0:
-                   market_price = list(order_depth.sell_orders.items())[0][0]
-                else:
-                   market_price = 5000
-                self.past_data.append(market_price)
-                success, direction = self.LinearRegression()
-                if success:
-                    if direction > 0:
-                        orders.append(Order(product, int(best_bid)+1, max_buy_size))
-                    elif direction < 0:
-                        orders.append(Order(product, int(best_ask)-1, max_sell_size))
-                 
+                sell_lowest = list(order_depth.sell_orders.items())[0]
+                sell_price, sell_amount = sell_lowest
+                buy_highest = list(order_depth.buy_orders.items())[0]
+                buy_price, buy_amount = buy_highest
+                
+                logger.print(sell_lowest, buy_highest)
+                
+                orders.append(Order(product, int(sell_price - 0.5), -int(15)))
+                orders.append(Order(product, int(buy_price + 0.5), int(15)))
+            
             result[product] = orders
+                
+                
 
-		    # String value holding Trader state data required. 
-				# It will be delivered as TradingState.traderData on next execution.
+		# String value holding Trader state data required. 
+		# It will be delivered as TradingState.traderData on next execution.
         traderData = "SAMPLE" 
         
-				# Sample conversion request. Check more details below. 
+		# Sample conversion request. Check more details below. 
         conversions = abs(position) if abs(position) == 20 else 0
-        
+        logger.print(result)
         logger.flush(state, result, conversions, traderData)
         
         return result, conversions, traderData
