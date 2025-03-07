@@ -70,12 +70,16 @@ class Trader:
 def __main__():
     # Create mock data for the TradingState object
     order_depths = {
-        'PEARLS': OrderDepth()
+        'RAINFOREST_RESIN': OrderDepth(),
+        'KELP': OrderDepth()
     }
     
-    # Add some dummy orders for PEARLS to test
-    order_depths['PEARLS'].buy_orders = {5: 10, 6: 15}  # Buy orders at price 5 and 6
-    order_depths['PEARLS'].sell_orders = {3: -5, 4: -10}  # Sell orders at price 3 and 4
+    # Add some dummy orders for RAINFOREST_RESIN to test
+    order_depths['RAINFOREST_RESIN'].buy_orders = {5: 10, 6: 15}  # Buy orders at price 5 and 6
+    order_depths['RAINFOREST_RESIN'].sell_orders = {3: -5, 4: -10}  # Sell orders at price 3 and 4
+    # Add some dummy orders for KELP to test
+    order_depths['KELP'].buy_orders = {5: 10, 6: 15}  # Buy orders at price 5 and 6
+    order_depths['KELP'].sell_orders = {3: -5, 4: -10}  # Sell orders at price 3 and 4
 
     # Create a dummy TradingState
     trading_state = TradingState(
