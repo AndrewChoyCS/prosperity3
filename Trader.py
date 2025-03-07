@@ -140,27 +140,29 @@ class Trader:
       market_price = (sell_price + buy_price) / 2
 
       total_orders = 0
-      sell_orders = list(order_depth.sell_orders.items())[0:3]
-      buy_orders = list(order_depth.buy_orders.items())[0:3]
+      sell_orders = list(order_depth.sell_orders.items())
+      buy_orders = list(order_depth.buy_orders.items())
+      logger.print("Sell Order Depth: ", sell_orders)
+      logger.print("Buy Order Depth: ", buy_orders)
       volume_avg = 0
 
       for item in sell_orders:
         price, size = item
-        volume_avg += price * size
-        total_orders += size
+        volume_avg += price * abs(size)
+        total_orders += abs(size)
       
       for item in buy_orders:
         price, size = item
-        volume_avg += price*size
-        total_orders += size
+        volume_avg += price*abs(size)
+        total_orders += abs(size)
 
       if total_orders == 0:
         return False, 10000, 0, 1, 1
 
 
       volume_avg = volume_avg / total_orders
-      buy_amount = min(max(1, (volume_avg - market_price) * 4), 20)
-      sell_amount = min(max(1, (market_price - volume_avg) * 4), 20)
+      buy_amount = min(max(1, (volume_avg - market_price) * 4), 50)
+      sell_amount = min(max(1, (market_price - volume_avg) * 4), 50)
       
       return True, market_price, volume_avg, buy_amount, sell_amount
 
@@ -176,7 +178,7 @@ class Trader:
     def run(self, state: TradingState):
         logger.print("traderData: " + state.traderData)
         logger.print("Observations: " + str(state.observations))
-				
+
         # Orders to be placed on exchange matching engine
         result = {}
         for product in state.order_depths:
@@ -189,10 +191,10 @@ class Trader:
             position = state.position[product] if product in state.position else 0
             if (badAlgo):
               success, market_price, vwap, buy_amt, sell_amt = self.VWAP(order_depth)
-              logger.print(f"{product} Market Price: " + str(market_price) + " " + str(vwap) + " " + str(buy_amt) + " " + str(sell_amt))
+              logger.print(f"{product} Market Price: " + str(market_price) + " VWAP: " + str(vwap) + " BUY: " + str(buy_amt) + " SELL: " + str(sell_amt))
               if success:
-                orders.append(Order(product, int(market_price) + 1, -int(sell_amt)))
-                orders.append(Order(product, int(market_price) - 1,  int(buy_amt)))
+                orders.append(Order(product, int(vwap + 1), -int(sell_amt)))
+                orders.append(Order(product, int(vwap - 1),  int(buy_amt)))
 
             else:
               position = state.position[product] if product in state.position else 0
