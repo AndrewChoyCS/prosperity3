@@ -131,7 +131,7 @@ class Trader:
       self.time_stamp = np.array([[i for i in range(1, 101)]])
       self.preCompute = np.linalg.pinv(self.time_stamp.transpose() @ self.time_stamp) @ self.time_stamp.transpose()
     
-    def VWAP(self, order_depth: OrderDepth):
+    def VWAP(self, order_depth: OrderDepth, position):
       sell_lowest = list(order_depth.sell_orders.items())[0]
       buy_highest = list(order_depth.buy_orders.items())[0]
 
@@ -161,10 +161,22 @@ class Trader:
 
 
       volume_avg = volume_avg / total_orders
-      buy_amount = min(max(1, (volume_avg - market_price) * 4), 50)
-      sell_amount = min(max(1, (market_price - volume_avg) * 4), 50)
       
-      return True, market_price, volume_avg, buy_amount, sell_amount
+      new_vol_avg = 0
+      for item in sell_orders:
+          price, size = item 
+          new_vol_avg += (2*volume_avg - price) * abs(size)
+      for item in buy_orders:
+          price, size = item 
+          new_vol_avg += (2*volume_avg - price) * size
+      
+      new_vol_avg = new_vol_avg / total_orders
+      buy_amount = min(max(5, (new_vol_avg - market_price) * 10), 50-position)
+      sell_amount = min(max(5, (market_price - new_vol_avg) * 10), 50+position)
+      
+      
+      
+      return True, market_price, new_vol_avg, buy_amount, sell_amount
 
     def LinearRegression (self):
       if len(self.past_data) <= 100:
@@ -190,7 +202,7 @@ class Trader:
             badAlgo = True
             position = state.position[product] if product in state.position else 0
             if (badAlgo):
-              success, market_price, vwap, buy_amt, sell_amt = self.VWAP(order_depth)
+              success, market_price, vwap, buy_amt, sell_amt = self.VWAP(order_depth, position)
               logger.print(f"{product} Market Price: " + str(market_price) + " VWAP: " + str(vwap) + " BUY: " + str(buy_amt) + " SELL: " + str(sell_amt))
               sell_lowest = list(order_depth.sell_orders.items())[0]
               sell_price, sell_amount = sell_lowest
@@ -198,8 +210,8 @@ class Trader:
               buy_price, buy_amount = buy_highest
               mkt_width = sell_price - buy_price
               if success:
-                orders.append(Order(product, max(buy_price, int(vwap + mkt_width/3)), -int(sell_amt)))
                 orders.append(Order(product, min(sell_price, int(vwap - mkt_width/3)),  int(buy_amt)))
+                orders.append(Order(product, max(buy_price, max(int(vwap - mkt_width/3 + 1), int(vwap + mkt_width/3))), -int(sell_amt)))
 
             else:
                 sell_lowest = list(order_depth.sell_orders.items())[0]
