@@ -7,6 +7,7 @@ import statistics as stats
 import json
 from typing import Any
 
+
 class Logger:
     def __init__(self) -> None:
         self.logs = ""
@@ -127,9 +128,12 @@ class Trader:
     
     def __init__(self):
       self.positions = { "RAINFOREST_RESIN": [0, 0], "KELP": [0, 0]}
-      self.past_data = []
+      self.past_data = {}
+      self.kelp_timestep_to_avg_price = {}
       self.time_stamp = np.array([[i for i in range(1, 101)]])
       self.preCompute = np.linalg.pinv(self.time_stamp.transpose() @ self.time_stamp) @ self.time_stamp.transpose()
+      self.prevSlope = float('inf')
+      self.delay = 0 
     
     def VWAP(self, order_depth: OrderDepth):
       sell_lowest = list(order_depth.sell_orders.items())[0]
@@ -165,6 +169,21 @@ class Trader:
       sell_amount = min(max(1, (market_price - volume_avg) * 4), 50)
       
       return True, market_price, volume_avg, buy_amount, sell_amount
+    
+    def slopeDetection(self):
+        # If we have fewer than 2 points, we can't do a linear fit.
+        if len(self.kelp_timestep_to_avg_price) < 2:
+            return 0
+        
+        # Convert dict_keys and dict_values to numeric lists/arrays
+        x = np.array(list(self.kelp_timestep_to_avg_price.keys()), dtype=float)
+        y = np.array(list(self.kelp_timestep_to_avg_price.values()), dtype=float)
+        
+        logger.print("Fitting slope on x=", x, "y=", y)
+        
+        # Now it’s safe to do a linear fit
+        slope, intercept = np.polyfit(x, y, 1)
+        return slope
 
     def LinearRegression (self):
       if len(self.past_data) <= 100:
@@ -178,29 +197,56 @@ class Trader:
     def run(self, state: TradingState):
         logger.print("traderData: " + state.traderData)
         logger.print("Observations: " + str(state.observations))
+                
 
         # Orders to be placed on exchange matching engine
         result = {}
         for product in state.order_depths:
+            self.delay += 1
+                
             order_depth: OrderDepth = state.order_depths[product]
             orders: List[Order] = []
             sell_order_length = len(order_depth.sell_orders)
             buy_order_length = len(order_depth.buy_orders)
 
+            if product == 'KELP': 
+                # print(order_depth)
+                # print(list(order_depth.buy_orders.items())[0])
+                sell_price, sell_amount = list(order_depth.sell_orders.items())[0]
+                buy_price, buy_amount = list(order_depth.buy_orders.items())[0]
+                avg_price = (sell_price + buy_price) / 2
+                # print(avg_price)
+                self.kelp_timestep_to_avg_price[state.timestamp] = avg_price
+
             badAlgo = True
             position = state.position[product] if product in state.position else 0
             if (badAlgo):
-              success, market_price, vwap, buy_amt, sell_amt = self.VWAP(order_depth)
-              logger.print(f"{product} Market Price: " + str(market_price) + " VWAP: " + str(vwap) + " BUY: " + str(buy_amt) + " SELL: " + str(sell_amt))
-              sell_lowest = list(order_depth.sell_orders.items())[0]
-              sell_price, sell_amount = sell_lowest
-              buy_highest = list(order_depth.buy_orders.items())[0]
-              buy_price, buy_amount = buy_highest
-              mkt_width = sell_price - buy_price
-              if success:
-                orders.append(Order(product, max(buy_price, int(vwap + mkt_width/3)), -int(sell_amt)))
-                orders.append(Order(product, min(sell_price, int(vwap - mkt_width/3)),  int(buy_amt)))
+                success, market_price, vwap, buy_amt, sell_amt = self.VWAP(order_depth)
+                logger.print(f"{product} Market Price: " + str(market_price) + " VWAP: " + str(vwap) + " BUY: " + str(buy_amt) + " SELL: " + str(sell_amt))
+                sell_lowest = list(order_depth.sell_orders.items())[0]
+                sell_price, sell_amount = sell_lowest
+                buy_highest = list(order_depth.buy_orders.items())[0]
+                buy_price, buy_amount = buy_highest
+                mkt_width = sell_price - buy_price
+                if success:
+                    orders.append(Order(product, max(buy_price, int(vwap + mkt_width/3)), -int(sell_amt)))
+                    orders.append(Order(product, min(sell_price, int(vwap - mkt_width/3)),  int(buy_amt)))
 
+                slope = self.slopeDetection()
+
+                if self.delay > 10  and self.prevSlope < 0 and slope > 0:
+                    prevSlope = slope
+                    # orders.append(Order(product, int(sell_price - 0.5), -int(15)))
+                    # orders.append(Order(product, int(buy_price), int(15)))
+                    orders.append(Order(product, max(buy_price, int(vwap + mkt_width/3)), -int(sell_amt)))
+
+                if  self.delay > 10 and self.prevSlope > 0 and slope < 0:
+                    # orders.append(Order(product, int(sell_price ), -int(15)))
+                    orders.append(Order(product, min(sell_price, int(vwap - mkt_width/3)),  int(buy_amt)))
+
+
+
+            
             else:
                 sell_lowest = list(order_depth.sell_orders.items())[0]
                 sell_price, sell_amount = sell_lowest
