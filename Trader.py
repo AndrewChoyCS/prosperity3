@@ -132,51 +132,72 @@ class Trader:
       self.preCompute = np.linalg.pinv(self.time_stamp.transpose() @ self.time_stamp) @ self.time_stamp.transpose()
     
     def VWAP(self, order_depth: OrderDepth, position):
-      sell_lowest = list(order_depth.sell_orders.items())[0]
-      buy_highest = list(order_depth.buy_orders.items())[0]
+        sell_lowest = list(order_depth.sell_orders.items())[0]
+        buy_highest = list(order_depth.buy_orders.items())[0]
 
-      sell_price, sell_amount = sell_lowest
-      buy_price, buy_amount = buy_highest
-      market_price = (sell_price + buy_price) / 2
+        n = len(list(order_depth.sell_orders.items())) + len(list(order_depth.buy_orders.items()))
+        
+        sell_total = 0
+        buy_total = 0
+        
+        for price, amount in list(order_depth.sell_orders.items()):
+            sell_total += price*amount
+        
+        for price, amount in list(order_depth.buy_orders.items()):
+            buy_total += price*amount
+            
+        sell_price, sell_amount = sell_lowest
+        buy_price, buy_amount = buy_highest
+        # market_price = (sell_price + buy_price) / 2
+        market_price = (buy_total + sell_total)/n
 
-      total_orders = 0
-      sell_orders = list(order_depth.sell_orders.items())
-      buy_orders = list(order_depth.buy_orders.items())
-      logger.print("Sell Order Depth: ", sell_orders)
-      logger.print("Buy Order Depth: ", buy_orders)
-      volume_avg = 0
+        total_orders = 0
+        sell_orders = list(order_depth.sell_orders.items())
+        buy_orders = list(order_depth.buy_orders.items())
+        logger.print("Sell Order Depth: ", sell_orders)
+        logger.print("Buy Order Depth: ", buy_orders)
+        volume_avg = 0
+        sell_volume_avg = 0
+        buy_volume_avg = 0
+        sell_order = 0
+        buy_order = 0
+        
+        for item in sell_orders:
+            price, size = item
+            sell_volume_avg += price * abs(size)
+            sell_order += abs(size)
+        
+        for item in buy_orders:
+            price, size = item
+            buy_volume_avg += price*abs(size)
+            buy_order += abs(size)
+        
+        total_orders = sell_order + buy_order
+        if total_orders == 0:
+            return False, 10000, 0, 1, 1
 
-      for item in sell_orders:
-        price, size = item
-        volume_avg += price * abs(size)
-        total_orders += abs(size)
-      
-      for item in buy_orders:
-        price, size = item
-        volume_avg += price*abs(size)
-        total_orders += abs(size)
-
-      if total_orders == 0:
-        return False, 10000, 0, 1, 1
-
-
-      volume_avg = volume_avg / total_orders
-      
-      new_vol_avg = 0
-      for item in sell_orders:
-          price, size = item 
-          new_vol_avg += (2*volume_avg - price) * abs(size)
-      for item in buy_orders:
-          price, size = item 
-          new_vol_avg += (2*volume_avg - price) * size
-      
-      new_vol_avg = new_vol_avg / total_orders
-      buy_amount = min(max(5, (new_vol_avg - market_price) * 10), 50-position)
-      sell_amount = min(max(5, (market_price - new_vol_avg) * 10), 50+position)
-      
-      
-      
-      return True, market_price, new_vol_avg, buy_amount, sell_amount
+        volume_avg = sell_volume_avg + buy_volume_avg
+        volume_avg = volume_avg / total_orders
+        
+        new_vol_avg = 0
+        new_sell_volume = 0
+        new_buy_volume = 0
+        for item in sell_orders:
+            price, size = item 
+            new_vol_avg += (2*volume_avg - price) * abs(size)
+        for item in buy_orders:
+            price, size = item 
+            new_vol_avg += (2*volume_avg - price) * size
+        new_buy_volume = new_vol_avg/ (total_orders - buy_order)
+        new_sell_volume = new_vol_avg/ (total_orders - sell_order)
+        new_vol_avg = (new_buy_volume + new_sell_volume)/4
+        logger.print(new_buy_volume, new_sell_volume, new_vol_avg)
+        # buy_amount = min(max(10, (new_buy_volume - market_price) * 10), 50-position)
+        # sell_amount = min(max(10, (market_price - new_sell_volume) * 10), 50+position)
+        buy_amount = min(max(20, (new_buy_volume - market_price)*10), 50 - position)
+        sell_amount = min(max(20, (market_price - new_sell_volume)*10), 50 + position)
+        
+        return True, market_price, new_vol_avg, buy_amount, sell_amount
 
     def LinearRegression (self):
       if len(self.past_data) <= 100:
